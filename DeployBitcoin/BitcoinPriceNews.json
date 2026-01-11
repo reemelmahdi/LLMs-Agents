@@ -1,0 +1,154 @@
+{
+  "provider": "autogen_agentchat.teams.RoundRobinGroupChat",
+  "component_type": "team",
+  "version": 1,
+  "component_version": 1,
+  "description": "A team that generates a structured piece of information about a crypto price and news.",
+  "label": "CryptoNews&Price",
+  "config": {
+    "participants": [
+      {
+        "provider": "autogen_agentchat.agents.AssistantAgent",
+        "component_type": "agent",
+        "version": 1,
+        "component_version": 1,
+        "description": "Retrieves cryptocurrency price metrics",
+        "label": "price_retriever",
+        "config": {
+          "name": "price_retriever",
+          "model_client": {
+            "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+            "component_type": "model",
+            "version": 1,
+            "component_version": 1,
+            "description": "OpenAI GPT-4o-mini",
+            "label": "OpenAI GPT-4o Mini",
+            "config": {
+              "model": "gpt-4o-mini",
+              "api_key": "YOUR_OPENAI_API_KEY_HERE"
+            }
+          },
+          "tools": [
+            {
+              "provider": "autogen_core.tools.FunctionTool",
+              "component_type": "tool",
+              "version": 1,
+              "component_version": 1,
+              "description": "Fetch real-time cryptocurrency metrics from CoinGecko API.",
+              "label": "get_crypto_price",
+              "config": {
+                "source_code": "import subprocess\n\n\ndef get_crypto_price(coin: str) -> dict:\n    \"\"\"\n    Fetch real-time cryptocurrency metrics from CoinGecko API.\n    \n    Parameters:\n    coin (str): The name of the cryptocurrency (e.g., 'bitcoin').\n    \n    Returns:\n    dict: A dictionary containing:\n        - price: Current price in USD.\n        - market_cap: Market capitalization in USD.\n        - 24h_volume: 24-hour trading volume in USD.\n        - 24h_change: Percentage change in the last 24 hours.\n        - last_updated_at: Timestamp of the last data update.\n    On error, returns an error message.\n    \"\"\"\n    try:\n        # Install requests if not already installed\n        subprocess.check_call([\"python\", \"-m\", \"pip\", \"install\", \"requests\"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n    except Exception as e:\n        return {\"error\": f\"Failed to install dependencies: {e}\"}\n\n    import requests\n\n    url = \"https://api.coingecko.com/api/v3/simple/price\"\n    params = {\n        \"ids\": coin,\n        \"vs_currencies\": \"usd\",\n        \"include_market_cap\": \"true\",\n        \"include_24hr_vol\": \"true\",\n        \"include_24hr_change\": \"true\",\n        \"include_last_updated_at\": \"true\"\n    }\n\n    try:\n        response = requests.get(url, params=params)\n        response.raise_for_status()\n        data = response.json()\n        if coin not in data:\n            return {\"error\": \"Cryptocurrency not found.\"}\n        return {\n            \"price\": data[coin][\"usd\"],\n            \"market_cap\": data[coin][\"usd_market_cap\"],\n            \"24h_volume\": data[coin][\"usd_24h_vol\"],\n            \"24h_change\": data[coin][\"usd_24h_change\"],\n            \"last_updated_at\": data[coin][\"last_updated_at\"]\n        }\n    except requests.exceptions.RequestException as e:\n        return {\"error\": f\"API request failed: {e}\"}\n    except Exception as e:\n        return {\"error\": f\"An unexpected error occurred: {e}\"}\n",
+                "name": "get_crypto_price",
+                "description": "A simple calculator that performs basic arithmetic operations",
+                "global_imports": [],
+                "has_cancellation_support": false
+              }
+            }
+          ],
+          "model_context": {
+            "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+            "component_type": "chat_completion_context",
+            "version": 1,
+            "component_version": 1,
+            "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+            "label": "UnboundedChatCompletionContext",
+            "config": {}
+          },
+          "description": "An agent that provides assistance with ability to use tools.",
+          "system_message": "You are the 'price_retriever' agent.\n**Your Task:**\nUse the provided tool to retrieve the price and 24-hour change for a\ncryptocurrency specified by the user.\nProvide results in JSON format, including \"price\" and \"24h_change\"\nkeys.\n**Coordination:**\nOnce price metrics **AND** news have been retrieved successfully,\noutput the complete JSON representing both price and news data and\nappend the word \"TERMINATE\" on a new line.",
+          "model_client_stream": false,
+          "reflect_on_tool_use": false,
+          "tool_call_summary_format": "{result}"
+        }
+      },
+      {
+        "provider": "autogen_agentchat.agents.AssistantAgent",
+        "component_type": "agent",
+        "version": 1,
+        "component_version": 1,
+        "description": "An agent that provides assistance with ability to use tools.",
+        "label": "news_retriever",
+        "config": {
+          "name": "news_retriever",
+          "model_client": {
+            "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+            "component_type": "model",
+            "version": 1,
+            "component_version": 1,
+            "description": "OpenAI GPT-4o-mini",
+            "label": "OpenAI GPT-4o Mini",
+            "config": {
+              "model": "gpt-4o-mini",
+              "api_key": "YOUR_OPENAI_API_KEY_HERE"
+            }
+          },
+          "tools": [
+            {
+              "provider": "autogen_core.tools.FunctionTool",
+              "component_type": "tool",
+              "version": 1,
+              "component_version": 1,
+              "description": "Retrieves cryptocurrency news from the CryptoPanic API based on the provided currency code and optional filter type.",
+              "label": "get_crypto_news",
+              "config": {
+                "source_code": "import subprocess\nimport sys\n\ndef get_crypto_news(currency_code: str, filter_type: str = '') -> list:\n    \"\"\"\n    Retrieves cryptocurrency news from the CryptoPanic API based on the provided currency code and optional filter type.\n    \n    Parameters:\n        currency_code (str): The cryptocurrency code to filter news by (e.g., BTC, ETH).\n        filter_type (str): Optional filter type for news (e.g., rising, hot, bearish).\n    \n    Returns:\n        list: A list of dictionaries containing news titles, URLs, and source domains, or an error message if no news matches.\n    \"\"\"\n    try:\n        # Install requests if not already installed\n        try:\n            import requests\n        except ImportError:\n            subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'requests'])\n            import requests\n        \n        # API key and URL construction\n        api_key = 'YOUR_CRYPTOPANIC_API_KEY_HERE'  # Replace with your actual CryptoPanic API key.\n\n        url = f'https://cryptopanic.com/api/v1/posts/?auth_token={api_key}&currencies={currency_code}&filter={filter_type}&public=true'\n        \n        # Fetching news data\n        response = requests.get(url)\n        response.raise_for_status()  # Raise an error for bad responses\n        data = response.json()\n        \n        # Extracting relevant news entries\n        news = []\n        for post in data.get('results', []):\n            news_item = {\n                'id': post.get('id'),\n                'title': post.get('title'),\n                'description': post.get('description'),\n                'published_at': post.get('published_at'),\n                'created_at': post.get('created_at'),\n                'kind': post.get('kind'),\n                'url': post.get('url'),\n            }\n            news.append(news_item)\n        \n        if not news:\n            return 'No news found for the specified criteria.'\n        return news\n\n    except Exception as e:\n        return str(e)\n\n\n",
+                "name": "get_crypto_news",
+                "description": "A simple calculator that performs basic arithmetic operations",
+                "global_imports": [],
+                "has_cancellation_support": false
+              }
+            }
+          ],
+          "model_context": {
+            "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+            "component_type": "chat_completion_context",
+            "version": 1,
+            "component_version": 1,
+            "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+            "label": "UnboundedChatCompletionContext",
+            "config": {}
+          },
+          "description": "An agent that provides assistance with ability to use tools.",
+          "system_message": "You are the 'news_retriever'.\n**Your Task**\nUse the provided tool to fetch the latest news for a cryptocurrency specified by the user.\nAppend the results in a JSON format, including price and an array of news articles.\n**Coordination:**\nOnce price metrics **AND** news have been retrieved successfully,\noutput the complete JSON representing both price and news data and\nappend the word \"TERMINATE\" on a new line.",
+          "model_client_stream": false,
+          "reflect_on_tool_use": false,
+          "tool_call_summary_format": "{result}"
+        }
+      }
+    ],
+    "termination_condition": {
+      "provider": "autogen_agentchat.base.OrTerminationCondition",
+      "component_type": "termination",
+      "version": 1,
+      "component_version": 1,
+      "label": "OrTerminationCondition",
+      "config": {
+        "conditions": [
+          {
+            "provider": "autogen_agentchat.conditions.TextMentionTermination",
+            "component_type": "termination",
+            "version": 1,
+            "component_version": 1,
+            "description": "Terminate the conversation if a specific text is mentioned.",
+            "label": "TextMentionTermination",
+            "config": {
+              "text": "TERMINATE"
+            }
+          },
+          {
+            "provider": "autogen_agentchat.conditions.MaxMessageTermination",
+            "component_type": "termination",
+            "version": 1,
+            "component_version": 1,
+            "description": "Terminate the conversation after a maximum number of messages have been exchanged.",
+            "label": "MaxMessageTermination",
+            "config": {
+              "max_messages": 10,
+              "include_agent_event": false
+            }
+          }
+        ]
+      }
+    }
+  }
+}
