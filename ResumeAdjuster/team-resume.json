@@ -1,0 +1,154 @@
+{
+  "provider": "autogen_agentchat.teams.RoundRobinGroupChat",
+  "component_type": "team",
+  "version": 1,
+  "component_version": 1,
+  "description": "Resume adaptation team with adapter and reviewer agents",
+  "label": "Resume Team",
+  "config": {
+    "participants": [
+      {
+        "provider": "autogen_agentchat.agents.AssistantAgent",
+        "component_type": "agent",
+        "version": 1,
+        "component_version": 1,
+        "description": "This agent reads the job description and adjust the resume in the tools to match it.",
+        "label": "adapter_agent",
+        "config": {
+          "name": "adapter_agent",
+          "model_client": {
+            "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+            "component_type": "model",
+            "version": 1,
+            "component_version": 1,
+            "description": "OpenAI GPT-4o Mini",
+            "label": "OpenAI GPT-4o Mini",
+            "config": {
+              "model": "gpt-4o-mini",
+              "api_key": "YOUR_OPENAI_API_KEY_HERE"
+            }
+          },
+          "tools": [
+            {
+              "provider": "autogen_core.tools.FunctionTool",
+              "component_type": "tool",
+              "version": 1,
+              "component_version": 1,
+              "description": "Tool to load and save resume content from resume.md file. Provides get_fixed_resume_content() to read and save_fixed_resume_content(updated_resume) to write.",
+              "label": "fixed_resume",
+              "config": {
+                "source_code": "import os\nfrom pathlib import Path\n\n# Get the absolute path to resume.md in the project directory\nRESUME_FILE_PATH = str(Path.cwd() / 'resume.md')\n\ndef get_fixed_resume_content() -> str:\n    \"\"\"Read and return the resume content from resume.md file.\"\"\"\n    try:\n        with open(RESUME_FILE_PATH, 'r', encoding='utf-8') as f:\n            content = f.read()\n        return content\n    except FileNotFoundError:\n        return f\"Error: resume.md file not found at {RESUME_FILE_PATH}\"\n    except Exception as e:\n        return f\"Error reading resume: {str(e)}\"\n\ndef save_fixed_resume_content(updated_resume: str) -> str:\n    \"\"\"Save the updated resume content to resume.md file.\"\"\"\n    try:\n        with open(RESUME_FILE_PATH, 'w', encoding='utf-8') as f:\n            f.write(updated_resume)\n        return f\"Resume updated successfully and saved to {RESUME_FILE_PATH}\"\n    except Exception as e:\n        return f\"Error saving resume: {str(e)}\"",
+                "name": "fixed_resume",
+                "description": "Tool functions to get and save resume content from resume.md file",
+                "global_imports": [],
+                "has_cancellation_support": false
+              }
+            }
+          ],
+          "model_context": {
+            "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+            "component_type": "chat_completion_context",
+            "version": 1,
+            "component_version": 1,
+            "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+            "label": "UnboundedChatCompletionContext",
+            "config": {}
+          },
+          "description": "An agent that provides assistance with ability to use tools.",
+          "system_message": "You are a professional resume optimization specialist. Your mission is to adapt resumes to maximize ATS (Applicant Tracking System) compatibility for specific job descriptions.\n\n**MANDATORY WORKFLOW - Follow these steps exactly:**\n\n1. **Load Resume**: Call get_fixed_resume_content() to retrieve the current resume\n2. **Analyze Job**: Extract key requirements, skills, and keywords from the job description\n3. **Adapt Resume**: Modify the resume to align with the job description by:\n   - Rewriting the Summary to emphasize relevant skills and experience\n   - Reordering Experience bullets to highlight most relevant accomplishments first\n   - Rewording bullets to include job description keywords naturally\n   - Updating Skills section to prioritize job-relevant technologies\n   - Maintaining all factual accuracy - never fabricate experience\n4. **Save Changes**: Call save_fixed_resume_content(updated_resume=\"...\") with the COMPLETE adapted resume as a string\n\n**ATS Optimization Rules:**\n- Mirror job description keywords and terminology exactly where appropriate\n- Use industry-standard job titles and skill names from the posting\n- Emphasize quantifiable achievements that match job requirements\n- Keep formatting simple: markdown with clear sections (# header, **bold**, bullet points)\n- Maintain professional tone throughout\n\n**Critical Rules:**\n- You MUST modify the resume content - do not return the original unchanged\n- You MUST call save_fixed_resume_content() with the full adapted resume text\n- Do NOT fabricate experience, dates, or qualifications\n- Do NOT add experiences that didn't happen\n- DO reword existing experiences to align with job requirements\n- DO reorder content to emphasize most relevant items\n\n**Example of calling save_fixed_resume_content():**\n```\nsave_fixed_resume_content(updated_resume=\"# Reem Elmahdi - Data Scientist\\n\\n**Summary:**\\nData Scientist with 6+ years...\\n\\n**Experience:**\\n* **Company** (dates) - description...\\n\\n**Skills:**\\nPython, SQL, etc...\")\n```\n\nBefore saving, ensure your adapted resume:\n✓ Incorporates job description keywords\n✓ Emphasizes relevant experience\n✓ Uses appropriate terminology from the job posting\n✓ Maintains factual accuracy\n✓ Is formatted as clean markdown",
+          "model_client_stream": false,
+          "reflect_on_tool_use": false,
+          "tool_call_summary_format": "{result}"
+        }
+      },
+      {
+        "provider": "autogen_agentchat.agents.AssistantAgent",
+        "component_type": "agent",
+        "version": 1,
+        "component_version": 1,
+        "description": "An agent that reviews the resume generated by adapter_agent to give an evaluation of the job description and how much estimated value will the ATS system generates for this generated resume.",
+        "label": "reviewer_agent",
+        "config": {
+          "name": "reviewer_agent",
+          "model_client": {
+            "provider": "autogen_ext.models.openai.OpenAIChatCompletionClient",
+            "component_type": "model",
+            "version": 1,
+            "component_version": 1,
+            "description": "OpenAI GPT-4o Mini",
+            "label": "OpenAI GPT-4o Mini",
+            "config": {
+              "model": "gpt-4o-mini",
+              "api_key": "YOUR_OPENAI_API_KEY_HERE"
+            }
+          },
+          "tools": [
+            {
+              "provider": "autogen_core.tools.FunctionTool",
+              "component_type": "tool",
+              "version": 1,
+              "component_version": 1,
+              "description": "A tool to load the resume with every single job description.",
+              "label": "fixed_resume",
+              "config": {
+                "source_code": "import os\nfrom pathlib import Path\n\n# Get the absolute path to resume.md in the project directory\nRESUME_FILE_PATH = str(Path.cwd() / 'resume.md')\n\ndef get_fixed_resume_content() -> str:\n    \"\"\"Read and return the resume content from resume.md file.\"\"\"\n    try:\n        with open(RESUME_FILE_PATH, 'r', encoding='utf-8') as f:\n            content = f.read()\n        return content\n    except FileNotFoundError:\n        return f\"Error: resume.md file not found at {RESUME_FILE_PATH}\"\n    except Exception as e:\n        return f\"Error reading resume: {str(e)}\"\n\ndef save_fixed_resume_content(updated_resume: str) -> str:\n    \"\"\"Save the updated resume content to resume.md file.\"\"\"\n    try:\n        with open(RESUME_FILE_PATH, 'w', encoding='utf-8') as f:\n            f.write(updated_resume)\n        return f\"Resume updated successfully and saved to {RESUME_FILE_PATH}\"\n    except Exception as e:\n        return f\"Error saving resume: {str(e)}\"",
+                "name": "fixed_resume",
+                "description": "Tool to load and save resume content. Provides get_fixed_resume_content() and save_fixed_resume_content(updated_resume) functions.",
+                "global_imports": [],
+                "has_cancellation_support": false
+              }
+            }
+          ],
+          "model_context": {
+            "provider": "autogen_core.model_context.UnboundedChatCompletionContext",
+            "component_type": "chat_completion_context",
+            "version": 1,
+            "component_version": 1,
+            "description": "An unbounded chat completion context that keeps a view of the all the messages.",
+            "label": "UnboundedChatCompletionContext",
+            "config": {}
+          },
+          "description": "An agent that provides assistance with ability to use tools.",
+          "system_message": "You are an expert ATS (Applicant Tracking System) resume reviewer. You must perform detailed analysis to calculate an accurate match score.\n\n**MANDATORY ANALYSIS WORKFLOW:**\n\n1. **Load Resume**: Call get_fixed_resume_content() to retrieve the adapted resume\n\n2. **Extract Job Requirements**: From the job description in the conversation, identify:\n   - Required technical skills (list them)\n   - Required experience level and domains\n   - Key responsibilities mentioned\n   - Must-have qualifications\n   - Nice-to-have qualifications\n\n3. **Keyword Analysis**: Count how many of the following appear in the resume:\n   - Technical skills from job description (Python, SQL, specific tools, etc.)\n   - Domain keywords (ML, NLP, data analysis, etc.)\n   - Action verbs from job posting (developed, implemented, optimized, etc.)\n   - Quantifiable metrics that match job requirements\n\n4. **Calculate Score Components**:\n   - **Keyword Match (40 points)**: \n     * Count critical keywords from job description found in resume\n     * If 90%+ keywords present = 40 points\n     * If 70-89% keywords = 30-39 points\n     * If 50-69% keywords = 20-29 points\n     * If <50% keywords = 0-19 points\n   \n   - **Experience Relevance (30 points)**:\n     * Does experience match required years and domain?\n     * Are achievements relevant to job responsibilities?\n     * Award points based on alignment\n   \n   - **Skills Alignment (20 points)**:\n     * Count matching technical skills\n     * Prioritize must-have vs nice-to-have\n   \n   - **ATS Formatting (10 points)**:\n     * Clear sections = 10 points\n     * Good formatting = 8-9 points\n\n5. **Calculate Total**: Sum all components to get final score (0-100%)\n\n6. **Provide Specific Feedback**: List which specific keywords/skills were found or missing\n\n**Output Format:**\nYou MUST output in this exact format:\n\n**ATS Match Score: [your calculated number]%**\n\n**Evaluation:**\n[Provide specific analysis mentioning:\n- Exact keywords/skills found in resume that match job description\n- Specific requirements that are well-addressed with examples\n- Specific gaps or missing keywords/skills from the job description\n- Be concrete - name the technologies, skills, or requirements]\n\nTERMINATE",
+          "model_client_stream": false,
+          "reflect_on_tool_use": false,
+          "tool_call_summary_format": "{result}"
+        }
+      }
+    ],
+    "termination_condition": {
+      "provider": "autogen_agentchat.base.OrTerminationCondition",
+      "component_type": "termination",
+      "version": 1,
+      "component_version": 1,
+      "label": "OrTerminationCondition",
+      "config": {
+        "conditions": [
+          {
+            "provider": "autogen_agentchat.conditions.TextMentionTermination",
+            "component_type": "termination",
+            "version": 1,
+            "component_version": 1,
+            "description": "Terminate the conversation if a specific text is mentioned.",
+            "label": "TextMentionTermination",
+            "config": {
+              "text": "TERMINATE"
+            }
+          },
+          {
+            "provider": "autogen_agentchat.conditions.MaxMessageTermination",
+            "component_type": "termination",
+            "version": 1,
+            "component_version": 1,
+            "description": "Terminate the conversation after a maximum number of messages have been exchanged.",
+            "label": "MaxMessageTermination",
+            "config": {
+              "max_messages": 6,
+              "include_agent_event": false
+            }
+          }
+        ]
+      }
+    }
+  }
+}
